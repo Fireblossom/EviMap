@@ -409,7 +409,7 @@ def build_aspects(
 def write_dashboard_html(path: Path) -> None:
     html = """<!doctype html>
 <meta charset="utf-8">
-<title>EviMap POC Artifact</title>
+<title>EviMap Artifact</title>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;line-height:1.45}
 .layout{display:grid;grid-template-columns:360px 1fr;gap:24px}
@@ -417,7 +417,7 @@ button{display:block;width:100%;text-align:left;margin:4px 0;padding:6px}
 mark{background:#ffcf70;padding:1px 3px}
 pre{white-space:pre-wrap}
 </style>
-<h1>EviMap POC Artifact</h1>
+<h1>EviMap Artifact</h1>
 <p>This viewer is only for checking the regenerated artifact. The reproducible output is <code>topic_map.json</code>.</p>
 <div class="layout"><div id="tree"></div><div id="detail"></div></div>
 <script>
@@ -468,7 +468,7 @@ main();
 
 def write_report(path: Path, cfg: PipelineConfig, counts: dict[str, int]) -> None:
     lines = [
-        "# EviMap POC Run Report",
+        "# EviMap Run Report",
         "",
         f"- evimap_poc_version: `{__version__}`",
         f"- input: `{cfg.input}`",
@@ -653,7 +653,7 @@ def run_pipeline(cfg: PipelineConfig) -> None:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Run the full EviMap POC pipeline.")
+    p = argparse.ArgumentParser(description="Run the full EviMap pipeline.")
     p.add_argument("--input", required=True, help="JSONL documents: doc_id, text, metadata")
     p.add_argument("--output", required=True, help="run output directory")
     p.add_argument("--model", default=DEFAULT_LLM_MODEL)

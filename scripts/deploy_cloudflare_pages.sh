@@ -3,11 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-PROJECT="${1:-${CF_PAGES_PROJECT:-evimap-poc}}"
+PROJECT="${1:-${CF_PAGES_PROJECT:-evimap-demo}}"
 RUN_DIR="${RUN_DIR:-runs/sample_job_posts}"
 DIST_DIR="${DIST_DIR:-dist}"
 BRANCH="${CF_PAGES_BRANCH:-main}"
-TITLE="${EVIMAP_SITE_TITLE:-EviMap POC}"
+TITLE="${EVIMAP_SITE_TITLE:-EviMap}"
 
 if ! command -v npx >/dev/null 2>&1; then
   echo "ERROR: npx is required for Wrangler. Install Node.js first." >&2
@@ -29,4 +29,3 @@ echo "Deploying $DIST_DIR to Cloudflare Pages project '$PROJECT' on branch '$BRA
 npx wrangler pages deploy "$DIST_DIR" \
   --project-name="$PROJECT" \
   --branch="$BRANCH"
-

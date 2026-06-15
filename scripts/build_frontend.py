@@ -88,7 +88,7 @@ def main() -> int:
         default="dist",
         help="Static output directory for Cloudflare Pages or any static host.",
     )
-    parser.add_argument("--title", default="EviMap POC")
+    parser.add_argument("--title", default="EviMap")
     args = parser.parse_args()
 
     root = Path.cwd()
@@ -105,4 +105,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
