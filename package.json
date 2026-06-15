@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "scripts": {
+    "sample": "bash scripts/run_sample.sh",
+    "build:frontend": "python scripts/build_frontend.py --run runs/sample_job_posts --out dist",
+    "deploy:pages": "bash scripts/deploy_cloudflare_pages.sh"
+  }
+}
