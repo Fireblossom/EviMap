@@ -89,7 +89,7 @@ def landing_page(
         (
             contact_href,
             "+ Add a new corpus",
-            "Do not see your domain? Contact the author to map a new corpus.",
+            "Don't see your domain? Contact the author to map a new corpus.",
             " card-action",
         ),
         (
@@ -111,29 +111,53 @@ def landing_page(
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{safe_title} - Evidence-Grounded Topic Maps</title>
+<title>{safe_title}: Evidence-Grounded Topic Maps</title>
 <style>
-  body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 860px;
-         margin: 40px auto; padding: 0 20px; color: #25292f; }}
-  h1 {{ font-size: 26px; margin-bottom: 8px; }}
-  p.sub {{ color: #6b7380; max-width: 720px; }}
-  .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr));
-           gap: 14px; margin-top: 24px; }}
-  .card {{ display: block; border: 1px solid #e1e4e8; border-radius: 10px;
-           padding: 18px; text-decoration: none; color: inherit; transition: .15s; }}
-  .card:hover {{ border-color: #4d8db4; box-shadow: 0 2px 10px rgba(0,0,0,.06); }}
-  .card h2 {{ font-size: 18px; margin: 0 0 6px; }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; color: #1c1f24; background: #f7f7f9; line-height: 1.5;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                      Helvetica, Arial, sans-serif; }}
+  .wrap {{ max-width: 900px; margin: 0 auto; padding: 0 24px; }}
+  .topbar {{ background: #1c2733; color: #f7f7f9; padding: 30px 0 28px; }}
+  .topbar h1 {{ margin: 0; font-size: 27px; letter-spacing: -0.02em; font-weight: 750;
+               background: linear-gradient(120deg, #22d3ee 0%, #6366f1 48%, #ec4899 100%);
+               -webkit-background-clip: text; background-clip: text;
+               -webkit-text-fill-color: transparent; color: transparent; }}
+  .topbar p {{ margin: 9px 0 0; font-size: 14px; color: #aeb6bf; max-width: 660px; }}
+  main {{ padding: 34px 0 64px; }}
+  .section-label {{ font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+                   color: #6b7380; margin: 0 0 15px; font-weight: 600; }}
+  .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr));
+          gap: 14px; grid-auto-rows: 1fr; }}
+  .card {{ display: flex; flex-direction: column; justify-content: center;
+          min-height: 92px; background: #fff; border: 1px solid #e1e3e7;
+          border-radius: 10px; padding: 16px 18px; text-decoration: none; color: inherit;
+          transition: border-color .15s, box-shadow .15s, transform .15s; }}
+  .card:hover {{ border-color: #f7a23b; box-shadow: 0 3px 14px rgba(28,39,51,.08);
+                transform: translateY(-1px); }}
+  .card h2 {{ font-size: 17px; margin: 0 0 6px; font-weight: 600; }}
   .card p {{ margin: 0; color: #6b7380; font-size: 13px; }}
-  .card-action {{ border-style: dashed; background: #fafbfc; }}
-  .card-action h2 {{ color: #4d8db4; font-weight: 600; }}
+  .card-action {{ border-style: dashed; background: #fcfcfd; }}
+  .card-action h2 {{ color: #4d8db4; }}
+  .card-action:hover {{ border-color: #4d8db4; }}
 </style></head>
 <body>
-  <h1>{safe_title}</h1>
-  <p class="sub">Browse an unfamiliar corpus as a topic map. Every topic traces
-  back to evidence phrases highlighted in the original documents.</p>
-  <div class="grid">
-    {"".join(card_html)}
-  </div>
+  <header class="topbar">
+    <div class="wrap">
+      <h1>{safe_title}</h1>
+      <p>Evidence-grounded topic maps. Browse an unfamiliar corpus as a topic
+      map. Every topic traces back to evidence phrases highlighted in the
+      original documents.</p>
+    </div>
+  </header>
+  <main>
+    <div class="wrap">
+      <p class="section-label">Open this run</p>
+      <div class="grid">
+        {"".join(card_html)}
+      </div>
+    </div>
+  </main>
 </body></html>
 """
 

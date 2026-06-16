@@ -226,6 +226,14 @@ Preview the packaged frontend:
 python -m http.server 8000 --directory dist
 ```
 
+For local debugging without copying the artifact, build a small debug site with
+the same landing page and a symlink to the run output:
+
+```bash
+python scripts/build_debug_site.py --run runs/sample_job_posts
+cd site/debug && python -m http.server 8000
+```
+
 Deploy the packaged frontend to Cloudflare Pages with Wrangler direct upload:
 
 ```bash
