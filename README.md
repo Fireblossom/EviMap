@@ -266,3 +266,13 @@ PYTHONPATH=. python -m unittest discover -s tests
 - The embedding default is `paraphrase-multilingual-MiniLM-L12-v2`, matching
   the paper. You can switch to an OpenAI-compatible embedding endpoint with
   `--embedding-backend openai`.
+
+
+## Add a New Domain
+
+Want to see EviMap on another corpus or domain? Contact the authors with a short
+domain description and a few representative JSONL records. We can help prepare
+a new dashboard run when the data can be shared or sampled safely.
+
+- Zhiyin Tan: zhiyin.tan@l3s.de
+- Changxu Duan: duan@linglit.tu-darmstadt.de
