@@ -211,8 +211,8 @@ This writes:
 
 ```text
 dist/
-  index.html
-  dashboard.html
+  index.html              landing page
+  dashboard.html          generated run viewer
   topic_map.json
   run_report.md
   deploy_manifest.json
