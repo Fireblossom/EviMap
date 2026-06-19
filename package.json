@@ -4,6 +4,8 @@
     "sample": "bash scripts/run_sample.sh",
     "build:frontend": "python scripts/build_frontend.py --run runs/sample_job_posts --out dist",
     "build:debug": "python scripts/build_debug_site.py --run runs/sample_job_posts",
+    "serve:debug": "python scripts/serve_debug_site.py --dir site/debug --port 8000",
+    "serve:dist": "python scripts/serve_debug_site.py --dir dist --port 8000",
     "deploy:pages": "bash scripts/deploy_cloudflare_pages.sh"
   }
 }

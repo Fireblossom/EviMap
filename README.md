@@ -223,7 +223,7 @@ dist/
 Preview the packaged frontend:
 
 ```bash
-python -m http.server 8000 --directory dist
+python scripts/serve_debug_site.py --dir dist --port 8000
 ```
 
 For local debugging without copying the artifact, build a small debug site with
@@ -231,8 +231,12 @@ the same landing page and a symlink to the run output:
 
 ```bash
 python scripts/build_debug_site.py --run runs/sample_job_posts
-cd site/debug && python -m http.server 8000
+python scripts/serve_debug_site.py --dir site/debug --port 8000
 ```
+
+The local server serves gzip-compressed HTML, JSON, JavaScript, CSS, Markdown,
+and JSONL files, which is closer to Cloudflare Pages behavior than
+`python -m http.server`.
 
 Deploy the packaged frontend to Cloudflare Pages with Wrangler direct upload:
 
@@ -254,6 +258,8 @@ Equivalent npm scripts are included for convenience:
 
 ```bash
 npm run build:frontend
+npm run build:debug
+npm run serve:debug
 npm run deploy:pages -- evimap-demo
 ```
 

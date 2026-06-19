@@ -55,7 +55,7 @@ def main() -> int:
     out_dir.joinpath("index.html").write_text(html, encoding="utf-8")
 
     print(f"site/debug ready: {out_dir}")
-    print(f"  cd {out_dir} && python -m http.server 8000")
+    print("  python scripts/serve_debug_site.py --dir site/debug --port 8000")
     return 0
 
 
