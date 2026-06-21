@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,8 +19,10 @@ from .embeddings import embed_texts, normalize_rows
 from .io import ensure_dir, load_documents, write_json, write_jsonl
 from .llm import DEFAULT_MODEL as DEFAULT_LLM_MODEL, chat_json
 from .prompts import (
+    CONTRAST_SYSTEM,
     EXTRACTION_SYSTEM,
     FINE_GROUP_SYSTEM,
+    MERGE_TOPIC_SYSTEM,
     MID_GROUP_SYSTEM,
     NAME_ASPECT_SYSTEM,
     NAME_GROUP_SYSTEM,
@@ -406,6 +409,191 @@ def build_aspects(
     return aspects
 
 
+def merge_topics_within_groups(
+    topics: list[dict],
+    mid_groups: list[dict],
+    entry_to_topic: dict[str, str],
+    cfg: PipelineConfig,
+) -> list[dict]:
+    """Round-2 dedup (on unless EVIMAP_TOPIC_MERGE=0). Within each finished
+    mid-group, fold near-duplicate sibling leaf topics (e.g. "Track Title" +
+    "Track Titles") into one. No re-clustering is needed: this only collapses
+    duplicates inside an existing group, so the group structure is unchanged.
+
+    Faithful to the main pipeline's within-group merge: an LLM proposes which
+    sibling topics are near-duplicates, but a proposed pair only survives if the
+    two topics' TITLE embeddings are also close (cosine >= EVIMAP_TOPIC_MERGE_SIM)
+    -- the embedding gate blocks the LLM from collapsing distinct sub-kinds, while
+    titles (not phrase vectors) avoid the proper-name blind spot. Mutates
+    mid_groups + entry_to_topic in place; returns the reduced topics list."""
+    if os.getenv("EVIMAP_TOPIC_MERGE", "1").lower() in {"0", "false", "no", "off"}:
+        return topics
+    sim_min = float(os.getenv("EVIMAP_TOPIC_MERGE_SIM", "0.82"))
+    topic_by_id = {t["topic_id"]: t for t in topics}
+
+    title_vecs = normalize_rows(
+        embed_texts(
+            [t["display_title"] for t in topics],
+            backend=cfg.embedding_backend, model_name=cfg.embedding_model,
+            base_url=cfg.embedding_base_url, batch_size=cfg.embedding_batch_size,
+            device=cfg.embedding_device,
+        ).astype(np.float32)
+    )
+    vec_by_id = {t["topic_id"]: title_vecs[i] for i, t in enumerate(topics)}
+    merged_into: dict[str, str] = {}  # absorbed topic_id -> surviving topic_id
+
+    for group in mid_groups:
+        members = [tid for tid in group.get("member_topic_ids", []) if tid in topic_by_id]
+        if len(members) < 2:
+            continue
+        lines = []
+        for i, tid in enumerate(members):
+            phrases = "; ".join((topic_by_id[tid].get("representative_phrases") or [])[:4])
+            lines.append(f'{i}: "{topic_by_id[tid]["display_title"]}" -- {phrases}')
+        try:
+            out = chat_json(MERGE_TOPIC_SYSTEM, "Topics:\n" + "\n".join(lines),
+                            model=cfg.model, temperature=0.0)
+        except Exception:  # noqa: BLE001
+            continue
+
+        parent = {tid: tid for tid in members}
+
+        def find(x: str) -> str:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        for mset in out.get("merge_sets") or []:
+            ids = list(dict.fromkeys(
+                members[i] for i in mset if isinstance(i, int) and 0 <= i < len(members)))
+            for a, b in combinations(ids, 2):  # embedding-gate every proposed pair
+                if float(np.dot(vec_by_id[a], vec_by_id[b])) >= sim_min:
+                    parent[find(a)] = find(b)
+
+        clusters: dict[str, list[str]] = defaultdict(list)
+        for tid in members:
+            clusters[find(tid)].append(tid)
+        for ids in clusters.values():
+            if len(ids) < 2:
+                continue
+            ids.sort(key=lambda t: -topic_by_id[t]["support_doc_count"])
+            survivor = topic_by_id[ids[0]]
+            for other_id in ids[1:]:
+                other = topic_by_id[other_id]
+                survivor["member_phrase_entry_ids"] = list(dict.fromkeys(
+                    survivor["member_phrase_entry_ids"] + other["member_phrase_entry_ids"]))
+                for p in other.get("representative_phrases") or []:
+                    if p not in survivor["representative_phrases"]:
+                        survivor["representative_phrases"].append(p)
+                survivor["support_doc_ids"] = sorted(
+                    set(survivor["support_doc_ids"]) | set(other["support_doc_ids"]))
+                survivor["support_doc_count"] = len(survivor["support_doc_ids"])
+                survivor["occurrence_count"] += other.get("occurrence_count", 0)
+                merged_into[other_id] = survivor["topic_id"]
+            survivor["representative_phrases"] = survivor["representative_phrases"][:10]
+        group["member_topic_ids"] = [
+            tid for tid in group["member_topic_ids"] if tid not in merged_into]
+
+    if not merged_into:
+        print("[topic-merge] no near-duplicate leaf topics folded")
+        return topics
+    for entry_id, tid in list(entry_to_topic.items()):
+        if tid in merged_into:
+            entry_to_topic[entry_id] = merged_into[tid]
+    new_topics = [t for t in topics if t["topic_id"] not in merged_into]
+    print(f"[topic-merge] folded {len(merged_into)} near-duplicate leaf topics "
+          f"({len(topics)} -> {len(new_topics)})")
+    return new_topics
+
+
+def contrastive_rename(siblings: list[dict], model: str) -> dict[str, str]:
+    """Rename a broad sibling heading that subsumes a more specific sibling into
+    "Other X (excluding Y)". One-directional only: a reciprocal A-excl-B + B-excl-A
+    pair (or a ring) drops entirely, since those are near-duplicates to merge, not
+    containment to rename around. Returns ``{sibling_id -> new_name}``."""
+    if len(siblings) < 2:
+        return {}
+    lines = []
+    for i, s in enumerate(siblings):
+        members = ", ".join((s.get("members") or [])[:6])
+        lines.append(f'{i} | {s["name"]} | docs={s.get("docs", 0)} | members: {members}')
+    try:
+        out = chat_json(CONTRAST_SYSTEM, "Sibling headings:\n" + "\n".join(lines),
+                        model=model, temperature=0.0)
+    except Exception:  # noqa: BLE001
+        return {}
+    candidates = []
+    for r in out.get("renames") or []:
+        idx, exclude, new = r.get("id"), r.get("exclude"), str(r.get("new") or "").strip()
+        if (isinstance(idx, int) and 0 <= idx < len(siblings)
+                and isinstance(exclude, int) and 0 <= exclude < len(siblings)
+                and exclude != idx and new):
+            candidates.append((idx, exclude, new, r.get("leaks") or []))
+    # Hard guard: drop any rename whose OWN heading is itself excluded by another
+    # rename (that is a reciprocal pair or ring -> duplicates to merge, not
+    # containment). Only a strictly one-directional "broad excludes specific" survives.
+    excluded = {exclude for _, exclude, _, _ in candidates}
+    renames: dict[str, str] = {}
+    for idx, exclude, new, leaks in candidates:
+        if idx in excluded:
+            continue
+        renames[siblings[idx]["id"]] = new
+        if leaks:
+            print(f"[contrastive] leak in '{new}': {list(leaks)[:5]} belong to an "
+                  f"excluded sibling -- regroup, do not just rename")
+    return renames
+
+
+def apply_contrastive_naming(
+    aspects: list[dict],
+    mid_groups: list[dict],
+    topics: list[dict],
+    cfg: PipelineConfig,
+) -> None:
+    """Sibling-aware renaming (on unless EVIMAP_CONTRASTIVE_NAMING=0). Names are
+    chosen per group in isolation, so a heterogeneous catch-all can take a broad
+    label that swallows a more specific sibling (e.g. "Fruit" sitting beside
+    "Apples"). This rewrites only such over-broad remainders into
+    "Other X (excluding Y)" -- at the mid-group level within each aspect, then at
+    the top-aspect level. Mutates ``display_title`` in mid_groups and aspects in place."""
+    if os.getenv("EVIMAP_CONTRASTIVE_NAMING", "1").lower() in {"0", "false", "no", "off"}:
+        return
+    topic_by_id = {t["topic_id"]: t for t in topics}
+    group_by_id = {g["group_id"]: g for g in mid_groups}
+
+    n_mid = 0
+    for aspect in aspects:  # mid-groups within one aspect are siblings
+        sibling_groups = [group_by_id[gid] for gid in aspect.get("member_group_ids", [])
+                          if gid in group_by_id]
+        if len(sibling_groups) < 2:
+            continue
+        siblings = [{
+            "id": g["group_id"],
+            "name": g["display_title"],
+            "docs": g.get("support_doc_count", 0),
+            "members": [topic_by_id[t]["display_title"]
+                        for t in g.get("member_topic_ids", []) if t in topic_by_id][:6],
+        } for g in sibling_groups]
+        for gid, new in contrastive_rename(siblings, cfg.model).items():
+            group_by_id[gid]["display_title"] = new
+            n_mid += 1
+
+    aspect_siblings = [{  # all top-level aspects are siblings
+        "id": a["aspect_id"],
+        "name": a["display_title"],
+        "docs": a.get("support_doc_count", 0),
+        "members": [group_by_id[g]["display_title"]
+                    for g in a.get("member_group_ids", []) if g in group_by_id][:6],
+    } for a in aspects]
+    aspect_by_id = {a["aspect_id"]: a for a in aspects}
+    n_top = 0
+    for aid, new in contrastive_rename(aspect_siblings, cfg.model).items():
+        aspect_by_id[aid]["display_title"] = new
+        n_top += 1
+    print(f"[contrastive] renamed {n_mid} mid-groups, {n_top} aspects")
+
+
 def write_dashboard_html(path: Path) -> None:
     html = """<!doctype html>
 <meta charset="utf-8">
@@ -559,15 +747,8 @@ def run_pipeline(cfg: PipelineConfig) -> None:
     topics, topic_vectors, entry_to_topic = build_topics(
         leaf_groups, entries, occurrences, phrase_vectors, cfg
     )
-    topic_occurrences = []
-    for occ in occurrences:
-        topic_id = entry_to_topic.get(occ["phrase_entry_id"])
-        if topic_id:
-            row = dict(occ)
-            row["topic_id"] = topic_id
-            topic_occurrences.append(row)
-    write_jsonl(out / "04_leaf_topics" / "topics.jsonl", topics)
-    write_jsonl(out / "04_leaf_topics" / "topic_occurrences.jsonl", topic_occurrences)
+    # topics.jsonl / topic_occurrences.jsonl are written after the round-2 topic
+    # merge below, which folds near-duplicate leaf topics and remaps occurrences.
 
     print("[7] grouping leaf topics into mid-level groups")
     ensure_dir(out / "05_hierarchy")
@@ -621,6 +802,13 @@ def run_pipeline(cfg: PipelineConfig) -> None:
     )
     np.save(out / "05_hierarchy" / "mid_group_coassociation.npy", aspect_sim)
     aspects = build_aspects(aspect_id_groups, mid_groups, cfg)
+
+    # sibling-aware renaming: fold over-broad catch-all headings that subsume a
+    # specific sibling into "Other X (excluding Y)" (set EVIMAP_CONTRASTIVE_NAMING=0
+    # to disable). Mutates display_title in mid_groups + aspects, so rewrite the
+    # already-written mid_groups.jsonl too.
+    apply_contrastive_naming(aspects, mid_groups, topics, cfg)
+    write_jsonl(out / "05_hierarchy" / "mid_groups.jsonl", mid_groups)
     write_jsonl(out / "05_hierarchy" / "aspects.jsonl", aspects)
 
     print("[9] writing compact artifact")
