@@ -775,6 +775,17 @@ def run_pipeline(cfg: PipelineConfig) -> None:
     )
     np.save(out / "05_hierarchy" / "topic_coassociation.npy", mid_sim)
     mid_groups, mid_vectors = build_mid_groups(mid_id_groups, topics, topic_vectors, cfg)
+
+    # round-2: fold near-duplicate sibling leaf topics within each finished
+    # mid-group (e.g. "Track Title" + "Track Titles"), then write the leaf-topic
+    # artifacts with the merged topics + remapped occurrences.
+    topics = merge_topics_within_groups(topics, mid_groups, entry_to_topic, cfg)
+    topic_occurrences = [
+        {**occ, "topic_id": entry_to_topic[occ["phrase_entry_id"]]}
+        for occ in occurrences if entry_to_topic.get(occ["phrase_entry_id"])
+    ]
+    write_jsonl(out / "04_leaf_topics" / "topics.jsonl", topics)
+    write_jsonl(out / "04_leaf_topics" / "topic_occurrences.jsonl", topic_occurrences)
     write_jsonl(out / "05_hierarchy" / "mid_groups.jsonl", mid_groups)
 
     print("[8] building fixed-k top-level aspects")
