@@ -104,23 +104,37 @@ DO NOT merge: two distinct subjects; two sub-kinds or variants of a broader thin
 Return STRICT JSON: {"merge_sets": [[0, 2], [3, 5]]}  (each inner list = ids that are near-duplicates to merge into one). Use only shown integer ids; omit topics that stay alone."""
 
 
-CONTRAST_SYSTEM = """You refine a set of SIBLING headings so that none subsumes another.
+CONTRAST_SYSTEM = """You refine a set of SIBLING catalogue headings so that none SUBSUMES another.
 
 Each input line is one sibling group under the same parent:
   <id> | <heading> | docs=<count> | members: <a few example member names>
 
-Rename a heading ONLY when EXACTLY ONE other sibling is a strictly narrower, specific kind or instance of the broad category this heading names, and this heading's own members are the rest of that category. Then rename the broad heading to state the remainder: "Other <category> (excluding <that one specific sibling>)". Exclude exactly one sibling. Keep it short.
+Rename a heading ONLY when EXACTLY ONE other sibling is a STRICTLY NARROWER,
+specific kind / subtype / instance of the broad category this heading names, and
+this heading's OWN members are the REST of that category. Then rename this broad
+heading to state the remainder: "Other <category> (excluding <that one specific
+sibling>)". Exclude EXACTLY ONE sibling — the single most specific one it
+overlaps. Keep the name short.
 
-Do NOT rename -- leave exactly as given -- when:
-- Two siblings name roughly the same breadth or are near-synonyms, where neither is strictly narrower than the other. Those are duplicates to merge elsewhere, not a naming problem. Touch neither.
-- You would need to exclude more than one sibling.
-- The relationship is merely related or adjacent, not "X is a specific kind of this".
+DO NOT rename — leave EXACTLY as given — in any of these:
+- Two siblings that name roughly the SAME breadth, or are near-synonyms, where
+  NEITHER is strictly narrower than the other. They are DUPLICATES to be merged
+  elsewhere, not a naming problem. Touch NEITHER of them.
+- You would need to exclude more than one sibling to describe the remainder.
+- The relationship is merely "related / adjacent", not "X is a specific kind of
+  this broad heading".
 
-HARD RULE: renaming is one-directional. If you rename broad heading A to exclude specific sibling B, then B stays unchanged -- do NOT also rename B. Never output a pair where A excludes B and B excludes A, and never a ring.
+HARD RULE — renaming is ONE-DIRECTIONAL. If you rename broad heading A to exclude
+specific sibling B, then B is the specific one and MUST stay unchanged — do NOT
+also rename B. NEVER output a pair where A excludes B and B excludes A, and never
+a ring where each heading excludes another. If two headings each look broad
+enough to subsume the other, they are synonyms → leave both alone.
 
-If the broad heading you rename has own example members that actually belong to the excluded specific sibling, list them in "leaks".
+If the broad heading you rename has OWN example members that actually belong to
+the excluded specific sibling (a misfiled member), list them in "leaks" — those
+need regrouping, not renaming.
 
 Return STRICT JSON, integer ids as shown:
-{"renames": [{"id": <int broad heading>, "exclude": <int the one specific sibling>, "new": "Other X (excluding Y)", "leaks": ["..."]}]}
-Include only headings you rename; omit "leaks" when none."""
+{"renames": [{"id": <int broad heading>, "exclude": <int the ONE specific sibling>, "new": "Other X (excluding Y)", "leaks": ["..."]}]}
+Include ONLY headings you rename; omit "leaks" when there are none."""
 

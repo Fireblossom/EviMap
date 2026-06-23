@@ -428,7 +428,7 @@ def merge_topics_within_groups(
     mid_groups + entry_to_topic in place; returns the reduced topics list."""
     if os.getenv("EVIMAP_TOPIC_MERGE", "1").lower() in {"0", "false", "no", "off"}:
         return topics
-    sim_min = float(os.getenv("EVIMAP_TOPIC_MERGE_SIM", "0.82"))
+    sim_min = float(os.getenv("EVIMAP_TOPIC_MERGE_SIM", "0.72"))
     topic_by_id = {t["topic_id"]: t for t in topics}
 
     title_vecs = normalize_rows(
